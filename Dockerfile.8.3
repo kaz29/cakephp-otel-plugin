@@ -1,0 +1,5 @@
+FROM kaz29/php-apache:8.3.7
+
+RUN pecl install opentelemetry && docker-php-ext-enable opentelemetry
+
+WORKDIR /srv/app

@@ -1,0 +1,8 @@
+.DS_Store
+/.idea/*
+/.envrc
+/.env
+/.vscode
+/vendor/
+.phpunit.result.cache
+CLAUDE.md

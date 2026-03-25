@@ -1,0 +1,51 @@
+name: Tests
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        php-version: ['8.3', '8.4', '8.5']
+
+    services:
+      postgres:
+        image: postgres:13.4-alpine
+        env:
+          POSTGRES_USER: webapp
+          POSTGRES_PASSWORD: Passw0rd
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U webapp"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php-version }}
+          extensions: opentelemetry
+          tools: composer:v2
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist
+
+      - name: Run unit tests
+        run: vendor/bin/phpunit --testsuite unit
+
+      - name: Run integration tests
+        run: vendor/bin/phpunit --testsuite integration
+        env:
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_NAME: webapp
+          DB_USER: webapp
+          DB_PASSWORD: Passw0rd
