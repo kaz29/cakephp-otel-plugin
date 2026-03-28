@@ -1,5 +1,5 @@
 {
-    "name": "kaz29/otel-instrumentation",
+    "name": "kaz29/cakephp-otel-plugin",
     "description": "OpenTelemetry instrumentation plugin for CakePHP",
     "type": "cakephp-plugin",
     "license": "MIT",
@@ -26,6 +26,6 @@
         }
     },
     "extra": {
-        "installer-name": "OtelInstrumentation"
+        "installer-name": "CakePHPOtelPlugin"
     }
 }
