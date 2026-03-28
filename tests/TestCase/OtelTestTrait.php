@@ -38,7 +38,7 @@ trait OtelTestTrait
         });
     }
 
-    protected function resetSpans(): void
+    protected function resetOtel(): void
     {
         Globals::reset();
     }

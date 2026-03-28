@@ -46,7 +46,7 @@ class TableInstrumentationTest extends TestCase
     {
         parent::tearDown();
         TableRegistry::getTableLocator()->clear();
-        $this->resetSpans();
+        $this->resetOtel();
     }
 
     public function testFindCreatesSpanWithCorrectAttributes(): void

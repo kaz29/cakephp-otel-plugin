@@ -41,6 +41,7 @@ src/Middleware/OtelErrorLoggingMiddleware.php
 | 属性 | 内容 |
 |---|---|
 | `exception.type` | 例外クラス名 |
+| `exception.message` | 例外メッセージ |
 | `exception.stacktrace` | スタックトレース |
 | severity | `ERROR` |
 
@@ -69,14 +70,13 @@ public function middleware(MiddlewareQueue $middlewareQueue): MiddlewareQueue
 
 `InMemoryExporter` を使ってテスト中に生成されたスパンをキャプチャし、属性・スパン名・ステータスを PHPUnit で検証する。
 
-### 追加ファイル
+### 追加・変更ファイル
 
 ```
-phpunit.xml
-tests/OtelTestTrait.php
-tests/Instrumentation/ControllerInstrumentationTest.php
-tests/Middleware/OtelErrorLoggingMiddlewareTest.php
-tests/Util/DbSystemResolverTest.php
+tests/TestCase/OtelTestTrait.php
+tests/TestCase/Integration/Middleware/OtelErrorLoggingMiddlewareTest.php
+tests/TestCase/Integration/ControllerInstrumentationTest.php  (OtelTestTrait を使うよう変更)
+tests/TestCase/Integration/TableInstrumentationTest.php       (OtelTestTrait を使うよう変更)
 ```
 
 ### OtelTestTrait
@@ -92,9 +92,10 @@ tests/Util/DbSystemResolverTest.php
 | `getSpansByName(string $name)` | スパン名で絞り込んで返す |
 | `getFirstSpan()` | 最初のスパンを返す |
 | `getSpanAttribute($span, $key)` | スパンの属性値を取得する |
-| `resetSpans()` | テスト間でスパンをリセットする |
+| `resetOtel()` | テスト間で OTel グローバル状態をリセットする |
+| `getLogRecords()` | キャプチャされたログレコードをすべて返す |
 
-`setUp()` で `setUpOtel()`、`tearDown()` で `resetSpans()` を呼ぶこと。
+`setUp()` で `setUpOtel()`、`tearDown()` で `resetOtel()` を呼ぶこと。
 
 ### テストスイートの使い分け
 
@@ -102,8 +103,8 @@ tests/Util/DbSystemResolverTest.php
 
 | スイート | 対象ディレクトリ | ext-opentelemetry |
 |---|---|---|
-| `all` | `tests/` 全体 | 必要 |
-| `unit` | `tests/Util/` のみ | 不要 |
+| `unit` | `tests/TestCase/Unit/` | 不要 |
+| `integration` | `tests/TestCase/Integration/` | 必要 |
 
 `DbSystemResolverTest` は純粋なロジックテストのため `ext-opentelemetry` 不要。CI では常に動かせる。
 
@@ -114,15 +115,16 @@ tests/Util/DbSystemResolverTest.php
 ./vendor/bin/phpunit --testsuite unit
 
 # 拡張あり環境（ローカルなど）
-./vendor/bin/phpunit --testsuite all
+./vendor/bin/phpunit --testsuite integration
+# または全テスト
+./vendor/bin/phpunit
 ```
 
 ### composer.json への追加
 
 ```json
 "require-dev": {
-    "phpunit/phpunit": "^10.0",
-    "cakephp/cakephp": "^4 || ^5"
+    "phpunit/phpunit": "^10.0 || ^11.0"
 },
 "autoload-dev": {
     "psr-4": {

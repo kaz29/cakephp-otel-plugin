@@ -29,6 +29,7 @@ class OtelErrorLoggingMiddleware implements MiddlewareInterface
                 ->setSeverityText('ERROR')
                 ->setBody($exception->getMessage())
                 ->setAttribute('exception.type', get_class($exception))
+                ->setAttribute('exception.message', $exception->getMessage())
                 ->setAttribute('exception.stacktrace', $exception->getTraceAsString())
                 ->emit();
 

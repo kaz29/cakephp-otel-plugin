@@ -36,7 +36,7 @@ class OtelErrorLoggingMiddlewareTest extends TestCase
     protected function tearDown(): void
     {
         parent::tearDown();
-        $this->resetSpans();
+        $this->resetOtel();
     }
 
     public function testEmitsLogFor500Exception(): void
@@ -57,6 +57,7 @@ class OtelErrorLoggingMiddlewareTest extends TestCase
 
         $attributes = $log->getAttributes()->toArray();
         $this->assertSame(InternalErrorException::class, $attributes['exception.type']);
+        $this->assertSame('DB connection failed', $attributes['exception.message']);
         $this->assertArrayHasKey('exception.stacktrace', $attributes);
     }
 

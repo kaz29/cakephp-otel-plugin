@@ -42,7 +42,7 @@ class ControllerInstrumentationTest extends TestCase
     protected function tearDown(): void
     {
         parent::tearDown();
-        $this->resetSpans();
+        $this->resetOtel();
     }
 
     public function testInvokeActionCreatesSpanWithCorrectAttributes(): void
