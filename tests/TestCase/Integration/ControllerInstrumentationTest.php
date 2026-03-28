@@ -7,18 +7,15 @@ use Cake\Controller\Controller;
 use Cake\Http\Response;
 use Cake\Http\ServerRequest;
 use Cake\Core\Configure;
-use OpenTelemetry\API\Globals;
-use OpenTelemetry\API\Instrumentation\Configurator;
 use OpenTelemetry\API\Trace\SpanKind;
 use OpenTelemetry\API\Trace\StatusCode;
-use OpenTelemetry\SDK\Trace\SpanExporter\InMemoryExporter;
-use OpenTelemetry\SDK\Trace\SpanProcessor\SimpleSpanProcessor;
-use OpenTelemetry\SDK\Trace\TracerProviderBuilder;
+use OtelInstrumentation\Test\TestCase\OtelTestTrait;
 use PHPUnit\Framework\TestCase;
 
 class ControllerInstrumentationTest extends TestCase
 {
-    private InMemoryExporter $exporter;
+    use OtelTestTrait;
+
     private static bool $instrumentationLoaded = false;
 
     public static function setUpBeforeClass(): void
@@ -34,17 +31,18 @@ class ControllerInstrumentationTest extends TestCase
     {
         parent::setUp();
 
+        if (!extension_loaded('opentelemetry')) {
+            $this->markTestSkipped('ext-opentelemetry is not installed.');
+        }
+
         Configure::write('App.encoding', 'UTF-8');
+        $this->setUpOtel();
+    }
 
-        $this->exporter = new InMemoryExporter();
-        $tracerProvider = (new TracerProviderBuilder())
-            ->addSpanProcessor(new SimpleSpanProcessor($this->exporter))
-            ->build();
-
-        Globals::reset();
-        Globals::registerInitializer(function (Configurator $configurator) use ($tracerProvider) {
-            return $configurator->withTracerProvider($tracerProvider);
-        });
+    protected function tearDown(): void
+    {
+        parent::tearDown();
+        $this->resetOtel();
     }
 
     public function testInvokeActionCreatesSpanWithCorrectAttributes(): void
@@ -66,7 +64,7 @@ class ControllerInstrumentationTest extends TestCase
 
         $controller->invokeAction(fn () => $controller->getResponse(), []);
 
-        $spans = $this->exporter->getSpans();
+        $spans = $this->getSpans();
         $this->assertGreaterThanOrEqual(1, count($spans));
 
         $span = $spans[count($spans) - 1];
@@ -74,10 +72,9 @@ class ControllerInstrumentationTest extends TestCase
         $this->assertSame(SpanKind::KIND_SERVER, $span->getKind());
         $this->assertSame(StatusCode::STATUS_OK, $span->getStatus()->getCode());
 
-        $attributes = $span->getAttributes()->toArray();
-        $this->assertSame('GET', $attributes['http.method']);
-        $this->assertSame('index', $attributes['cake.action']);
-        $this->assertArrayHasKey('cake.controller', $attributes);
+        $this->assertSame('GET', $this->getSpanAttribute($span, 'http.method'));
+        $this->assertSame('index', $this->getSpanAttribute($span, 'cake.action'));
+        $this->assertNotNull($this->getSpanAttribute($span, 'cake.controller'));
     }
 
     public function testInvokeActionRecordsExceptionOnError(): void
@@ -107,7 +104,7 @@ class ControllerInstrumentationTest extends TestCase
             // expected
         }
 
-        $spans = $this->exporter->getSpans();
+        $spans = $this->getSpans();
         $this->assertGreaterThanOrEqual(1, count($spans));
 
         $span = $spans[count($spans) - 1];
