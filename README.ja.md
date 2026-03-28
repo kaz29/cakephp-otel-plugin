@@ -18,7 +18,7 @@ CakePHP 5 アプリケーションに OpenTelemetry instrumentation を追加す
 composer require kaz29/cakephp-otel-plugin
 ```
 
-`config/bootstrap.php` または `Application::bootstrap()` でプラグインを読み込む:
+`config/bootstrap.php` または `Application::bootstrap()` でプラグインを読み込みます:
 
 ```php
 $this->addPlugin('OtelInstrumentation');
@@ -105,15 +105,15 @@ OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
 
 ## OtelErrorLoggingMiddleware
 
-500系例外を OpenTelemetry ログレコードとして送信する PSR-15 ミドルウェア。ログは現在のスパンに自動で紐づくため、トレースバックエンド（Jaeger / Grafana Tempo など）のトレース画面から関連エラーをそのまま参照できる。
+500系例外を OpenTelemetry ログレコードとして送信する PSR-15 ミドルウェアです。ログは現在のスパンに自動で紐づくため、トレースバックエンド（Jaeger / Grafana Tempo など）のトレース画面から関連エラーをそのまま参照できます。
 
-- `HttpException` でステータスコード 500 以上: 送信
-- `HttpException` でステータスコード 400 系 (例: 404): 送信しない
-- `HttpException` 以外の例外（予期しないエラー）: 500 として送信
+- `HttpException` でステータスコード 500 以上: 送信します
+- `HttpException` でステータスコード 400 系 (例: 404): 送信しません
+- `HttpException` 以外の例外（予期しないエラー）: 500 として送信します
 
 ### 設定
 
-`Application::middleware()` で `ErrorHandlerMiddleware` の**後**（内側）に配置する:
+`Application::middleware()` で `ErrorHandlerMiddleware` の**後**（内側）に配置してください:
 
 ```php
 use OtelInstrumentation\Middleware\OtelErrorLoggingMiddleware;
@@ -130,11 +130,33 @@ public function middleware(MiddlewareQueue $middlewareQueue): MiddlewareQueue
 
 ## TraceAwareLogger
 
-PSR-3 LoggerInterface の Decorator。ログの `context` に `trace_id` / `span_id` を自動付与する。
+PSR-3 LoggerInterface の Decorator です。ログの `context` に `trace_id` / `span_id` を自動付与します。
 
 ```php
 $logger = new \OtelInstrumentation\Log\TraceAwareLogger($existingPsr3Logger);
 ```
+
+## デモアプリケーション (testapp)
+
+`testapp/` ディレクトリにサンプル CakePHP アプリケーションを同梱しています。Posts/Comments の CRUD アプリにプラグインを組み込み済みで、PostgreSQL と Jaeger を Docker Compose で提供します。
+
+### 起動方法
+
+```bash
+cd testapp
+docker compose up -d
+docker compose exec app composer install
+docker compose exec app bin/cake migrations migrate
+```
+
+- アプリ: http://localhost:8080
+- Jaeger UI: http://localhost:16686
+
+アプリにアクセスした後、Jaeger UI を開くとプラグインが生成したトレースを確認できます。
+
+### 仕組み
+
+testapp の `composer.json` は Composer の `path` リポジトリを使い、親ディレクトリのプラグインをシンボリックリンクでインストールします。プラグインのソースを変更すると再インストールなしで即座に反映されます。
 
 ## ライセンス
 
