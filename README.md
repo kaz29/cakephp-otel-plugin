@@ -43,6 +43,31 @@ OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
 OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
 ```
 
+## OtelErrorLoggingMiddleware
+
+A PSR-15 middleware that catches 500-level exceptions and emits them as OpenTelemetry log records. The log is automatically associated with the current span, so you can view related errors directly in your trace backend (Jaeger, Grafana Tempo, etc.).
+
+- `HttpException` with status code >= 500: logged
+- `HttpException` with status code < 500 (e.g. 404): not logged
+- Non-`HttpException` (unexpected errors): logged as 500
+
+### Setup
+
+Add it **after** `ErrorHandlerMiddleware` in your `Application::middleware()`:
+
+```php
+use OtelInstrumentation\Middleware\OtelErrorLoggingMiddleware;
+
+public function middleware(MiddlewareQueue $middlewareQueue): MiddlewareQueue
+{
+    $middlewareQueue
+        ->add(new ErrorHandlerMiddleware())
+        ->add(new OtelErrorLoggingMiddleware())
+        // ...
+    ;
+}
+```
+
 ## TraceAwareLogger
 
 A PSR-3 LoggerInterface decorator that automatically injects `trace_id` / `span_id` into log `context`.

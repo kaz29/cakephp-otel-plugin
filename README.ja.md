@@ -43,6 +43,31 @@ OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
 OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
 ```
 
+## OtelErrorLoggingMiddleware
+
+500系例外を OpenTelemetry ログレコードとして送信する PSR-15 ミドルウェア。ログは現在のスパンに自動で紐づくため、トレースバックエンド（Jaeger / Grafana Tempo など）のトレース画面から関連エラーをそのまま参照できる。
+
+- `HttpException` でステータスコード 500 以上: 送信
+- `HttpException` でステータスコード 400 系 (例: 404): 送信しない
+- `HttpException` 以外の例外（予期しないエラー）: 500 として送信
+
+### 設定
+
+`Application::middleware()` で `ErrorHandlerMiddleware` の**後**（内側）に配置する:
+
+```php
+use OtelInstrumentation\Middleware\OtelErrorLoggingMiddleware;
+
+public function middleware(MiddlewareQueue $middlewareQueue): MiddlewareQueue
+{
+    $middlewareQueue
+        ->add(new ErrorHandlerMiddleware())
+        ->add(new OtelErrorLoggingMiddleware())
+        // ...
+    ;
+}
+```
+
 ## TraceAwareLogger
 
 PSR-3 LoggerInterface の Decorator。ログの `context` に `trace_id` / `span_id` を自動付与する。

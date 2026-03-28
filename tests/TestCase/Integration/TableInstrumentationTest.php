@@ -6,18 +6,15 @@ namespace OtelInstrumentation\Test\TestCase\Integration;
 use Cake\ORM\Entity;
 use Cake\ORM\Table;
 use Cake\ORM\TableRegistry;
-use OpenTelemetry\API\Globals;
-use OpenTelemetry\API\Instrumentation\Configurator;
 use OpenTelemetry\API\Trace\SpanKind;
 use OpenTelemetry\API\Trace\StatusCode;
-use OpenTelemetry\SDK\Trace\SpanExporter\InMemoryExporter;
-use OpenTelemetry\SDK\Trace\SpanProcessor\SimpleSpanProcessor;
-use OpenTelemetry\SDK\Trace\TracerProviderBuilder;
+use OtelInstrumentation\Test\TestCase\OtelTestTrait;
 use PHPUnit\Framework\TestCase;
 
 class TableInstrumentationTest extends TestCase
 {
-    private InMemoryExporter $exporter;
+    use OtelTestTrait;
+
     private Table $articlesTable;
     private static bool $instrumentationLoaded = false;
 
@@ -34,15 +31,11 @@ class TableInstrumentationTest extends TestCase
     {
         parent::setUp();
 
-        $this->exporter = new InMemoryExporter();
-        $tracerProvider = (new TracerProviderBuilder())
-            ->addSpanProcessor(new SimpleSpanProcessor($this->exporter))
-            ->build();
+        if (!extension_loaded('opentelemetry')) {
+            $this->markTestSkipped('ext-opentelemetry is not installed.');
+        }
 
-        Globals::reset();
-        Globals::registerInitializer(function (Configurator $configurator) use ($tracerProvider) {
-            return $configurator->withTracerProvider($tracerProvider);
-        });
+        $this->setUpOtel();
 
         $this->articlesTable = TableRegistry::getTableLocator()->get('OtelTestArticles', [
             'className' => Table::class,
@@ -53,13 +46,14 @@ class TableInstrumentationTest extends TestCase
     {
         parent::tearDown();
         TableRegistry::getTableLocator()->clear();
+        $this->resetSpans();
     }
 
     public function testFindCreatesSpanWithCorrectAttributes(): void
     {
         $this->articlesTable->find('all');
 
-        $spans = $this->exporter->getSpans();
+        $spans = $this->getSpans();
         $this->assertGreaterThanOrEqual(1, count($spans));
 
         $span = $spans[count($spans) - 1];
@@ -67,24 +61,21 @@ class TableInstrumentationTest extends TestCase
         $this->assertSame(SpanKind::KIND_CLIENT, $span->getKind());
         $this->assertSame(StatusCode::STATUS_OK, $span->getStatus()->getCode());
 
-        $attributes = $span->getAttributes()->toArray();
-        $this->assertSame('postgresql', $attributes['db.system']);
-        $this->assertSame('OtelTestArticles', $attributes['cake.table']);
-        $this->assertSame('all', $attributes['cake.find_type']);
+        $this->assertSame('postgresql', $this->getSpanAttribute($span, 'db.system'));
+        $this->assertSame('OtelTestArticles', $this->getSpanAttribute($span, 'cake.table'));
+        $this->assertSame('all', $this->getSpanAttribute($span, 'cake.find_type'));
     }
 
     public function testFindListCreatesSpanWithListType(): void
     {
         $this->articlesTable->find('list');
 
-        $spans = $this->exporter->getSpans();
+        $spans = $this->getSpans();
         $this->assertGreaterThanOrEqual(1, count($spans));
 
         $span = $spans[count($spans) - 1];
         $this->assertSame('OtelTestArticles.find(list)', $span->getName());
-
-        $attributes = $span->getAttributes()->toArray();
-        $this->assertSame('list', $attributes['cake.find_type']);
+        $this->assertSame('list', $this->getSpanAttribute($span, 'cake.find_type'));
     }
 
     public function testSaveNewEntityCreatesSpan(): void
@@ -96,7 +87,7 @@ class TableInstrumentationTest extends TestCase
 
         $result = $this->articlesTable->save($entity);
 
-        $spans = $this->exporter->getSpans();
+        $spans = $this->getSpans();
         $saveSpans = array_values(array_filter($spans, fn ($s) => str_contains($s->getName(), '.save')));
         $this->assertNotEmpty($saveSpans);
 
@@ -105,10 +96,9 @@ class TableInstrumentationTest extends TestCase
         $this->assertSame(SpanKind::KIND_CLIENT, $span->getKind());
         $this->assertSame(StatusCode::STATUS_OK, $span->getStatus()->getCode());
 
-        $attributes = $span->getAttributes()->toArray();
-        $this->assertSame('postgresql', $attributes['db.system']);
-        $this->assertSame('OtelTestArticles', $attributes['cake.table']);
-        $this->assertTrue($attributes['cake.entity.new']);
+        $this->assertSame('postgresql', $this->getSpanAttribute($span, 'db.system'));
+        $this->assertSame('OtelTestArticles', $this->getSpanAttribute($span, 'cake.table'));
+        $this->assertTrue($this->getSpanAttribute($span, 'cake.entity.new'));
 
         // Cleanup
         if ($result) {
@@ -125,29 +115,19 @@ class TableInstrumentationTest extends TestCase
         $saved = $this->articlesTable->save($entity);
         $this->assertNotFalse($saved);
 
-        // Reset exporter to only capture delete span
-        $this->exporter = new InMemoryExporter();
-        $tracerProvider = (new TracerProviderBuilder())
-            ->addSpanProcessor(new SimpleSpanProcessor($this->exporter))
-            ->build();
-
-        Globals::reset();
-        Globals::registerInitializer(function (Configurator $configurator) use ($tracerProvider) {
-            return $configurator->withTracerProvider($tracerProvider);
-        });
+        // Reset to only capture delete span
+        $this->setUpOtel();
 
         $this->articlesTable->delete($saved);
 
-        $spans = $this->exporter->getSpans();
+        $spans = $this->getSpans();
         $deleteSpans = array_values(array_filter($spans, fn ($s) => str_contains($s->getName(), '.delete')));
         $this->assertNotEmpty($deleteSpans);
 
         $span = end($deleteSpans);
         $this->assertSame('OtelTestArticles.delete', $span->getName());
         $this->assertSame(SpanKind::KIND_CLIENT, $span->getKind());
-
-        $attributes = $span->getAttributes()->toArray();
-        $this->assertSame('OtelTestArticles', $attributes['cake.table']);
+        $this->assertSame('OtelTestArticles', $this->getSpanAttribute($span, 'cake.table'));
     }
 
     public function testSaveWithDbSystemAttribute(): void
@@ -159,13 +139,12 @@ class TableInstrumentationTest extends TestCase
 
         $result = $this->articlesTable->save($entity);
 
-        $spans = $this->exporter->getSpans();
+        $spans = $this->getSpans();
         $saveSpans = array_values(array_filter($spans, fn ($s) => str_contains($s->getName(), '.save')));
         $this->assertNotEmpty($saveSpans);
 
         $span = end($saveSpans);
-        $attributes = $span->getAttributes()->toArray();
-        $this->assertSame('postgresql', $attributes['db.system']);
+        $this->assertSame('postgresql', $this->getSpanAttribute($span, 'db.system'));
 
         // Cleanup
         if ($result) {
