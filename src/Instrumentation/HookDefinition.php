@@ -13,8 +13,8 @@ final class HookDefinition
      * @param string|null $spanName Override span name (default: FQCN::method)
      * @param int $kind SpanKind constant (default: KIND_INTERNAL)
      * @param array<string, mixed> $attributes Static attributes to set on every span
-     * @param (\Closure(object, array, string, string): array<string, mixed>)|null $attributeCallback
-     *     Dynamic attributes callback: fn($instance, $params, $class, $function) => ['key' => 'value']
+     * @param (\Closure(object|null, array, string, string): array<string, mixed>)|null $attributeCallback
+     *     Dynamic attributes callback: fn($instance, $params, $class, $function) => ['key' => 'value']; $instance may be null for static methods
      */
     public function __construct(
         public readonly string $class,

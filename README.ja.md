@@ -74,7 +74,7 @@ CustomInstrumentation::register(
     spanName: 'payment.charge',
     kind: SpanKind::KIND_CLIENT,
     attributes: ['payment.provider' => 'stripe'],
-    attributeCallback: fn($instance, $params) => [
+    attributeCallback: fn($instance, $params, $class, $function) => [
         'payment.amount' => $params[0] ?? null,
     ],
 );

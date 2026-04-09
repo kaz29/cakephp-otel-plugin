@@ -36,6 +36,11 @@ class CustomInstrumentationTest extends TestCase
     public static function setUpBeforeClass(): void
     {
         parent::setUpBeforeClass();
+
+        if (!extension_loaded('opentelemetry')) {
+            return;
+        }
+
         if (!self::$instrumentationLoaded) {
             CustomInstrumentation::register(
                 DummyService::class,
@@ -62,6 +67,13 @@ class CustomInstrumentationTest extends TestCase
             CustomInstrumentation::apply();
             self::$instrumentationLoaded = true;
         }
+    }
+
+    public static function tearDownAfterClass(): void
+    {
+        CustomInstrumentation::reset();
+        self::$instrumentationLoaded = false;
+        parent::tearDownAfterClass();
     }
 
     protected function setUp(): void

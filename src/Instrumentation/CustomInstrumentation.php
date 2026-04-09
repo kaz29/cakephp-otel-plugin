@@ -24,7 +24,7 @@ final class CustomInstrumentation
      * @param string|null $spanName Override span name (default: FQCN::method)
      * @param int $kind SpanKind constant (default: KIND_INTERNAL)
      * @param array<string, mixed> $attributes Static attributes
-     * @param (\Closure(object, array, string, string): array<string, mixed>)|null $attributeCallback
+     * @param (\Closure(object|null, array, string, string): array<string, mixed>)|null $attributeCallback
      */
     public static function register(
         string $class,
@@ -34,7 +34,7 @@ final class CustomInstrumentation
         array $attributes = [],
         ?\Closure $attributeCallback = null,
     ): void {
-        self::$definitions[] = new HookDefinition(
+        $definition = new HookDefinition(
             class: $class,
             method: $method,
             spanName: $spanName,
@@ -42,6 +42,12 @@ final class CustomInstrumentation
             attributes: $attributes,
             attributeCallback: $attributeCallback,
         );
+
+        self::$definitions[] = $definition;
+
+        if (self::$applied) {
+            self::applyDefinition($definition);
+        }
     }
 
     /**
@@ -50,17 +56,27 @@ final class CustomInstrumentation
     public static function add(HookDefinition $definition): void
     {
         self::$definitions[] = $definition;
+
+        if (self::$applied) {
+            self::applyDefinition($definition);
+        }
     }
 
     /**
      * Load hook definitions from Configure-style array format.
      *
-     * @param array<array{class: class-string, method: string, spanName?: string, kind?: int, attributes?: array<string, mixed>}> $configs
+     * @param array<array{class: class-string, method: string, spanName?: string, kind?: int, attributes?: array<string, mixed>, attributeCallback?: \Closure}> $configs
      */
     public static function loadFromConfig(array $configs): void
     {
-        foreach ($configs as $config) {
-            self::$definitions[] = new HookDefinition(
+        foreach ($configs as $i => $config) {
+            if (!isset($config['class']) || !isset($config['method'])) {
+                throw new \InvalidArgumentException(
+                    sprintf('OtelInstrumentation.hooks[%d] must have "class" and "method" keys.', $i)
+                );
+            }
+
+            $definition = new HookDefinition(
                 class: $config['class'],
                 method: $config['method'],
                 spanName: $config['spanName'] ?? null,
@@ -68,12 +84,19 @@ final class CustomInstrumentation
                 attributes: $config['attributes'] ?? [],
                 attributeCallback: $config['attributeCallback'] ?? null,
             );
+
+            self::$definitions[] = $definition;
+
+            if (self::$applied) {
+                self::applyDefinition($definition);
+            }
         }
     }
 
     /**
      * Apply all registered hooks via \OpenTelemetry\Instrumentation\hook().
-     * Called once during Plugin::bootstrap(). Idempotent.
+     * Called during Plugin::bootstrap(). Definitions registered after apply()
+     * will be hooked immediately.
      */
     public static function apply(): void
     {
@@ -82,65 +105,68 @@ final class CustomInstrumentation
         }
         self::$applied = true;
 
+        foreach (self::$definitions as $definition) {
+            self::applyDefinition($definition);
+        }
+    }
+
+    private static function applyDefinition(HookDefinition $def): void
+    {
         $instrumentation = new CachedInstrumentation('otel-instrumentation.cakephp.custom');
 
-        foreach (self::$definitions as $definition) {
-            $def = $definition;
+        \OpenTelemetry\Instrumentation\hook(
+            class: $def->class,
+            function: $def->method,
+            pre: static function (
+                mixed $instance,
+                array $params,
+                string $class,
+                string $function,
+                ?string $filename,
+                ?int $lineno,
+            ) use ($instrumentation, $def): void {
+                $spanBuilder = $instrumentation->tracer()
+                    ->spanBuilder($def->spanName ?? ($class . '::' . $function))
+                    ->setSpanKind($def->kind);
 
-            \OpenTelemetry\Instrumentation\hook(
-                class: $def->class,
-                function: $def->method,
-                pre: static function (
-                    mixed $instance,
-                    array $params,
-                    string $class,
-                    string $function,
-                    ?string $filename,
-                    ?int $lineno,
-                ) use ($instrumentation, $def): void {
-                    $spanBuilder = $instrumentation->tracer()
-                        ->spanBuilder($def->spanName ?? ($class . '::' . $function))
-                        ->setSpanKind($def->kind);
+                foreach ($def->attributes as $key => $value) {
+                    $spanBuilder->setAttribute($key, $value);
+                }
 
-                    foreach ($def->attributes as $key => $value) {
+                if ($def->attributeCallback !== null) {
+                    $dynamicAttrs = ($def->attributeCallback)($instance, $params, $class, $function);
+                    foreach ($dynamicAttrs as $key => $value) {
                         $spanBuilder->setAttribute($key, $value);
                     }
+                }
 
-                    if ($def->attributeCallback !== null) {
-                        $dynamicAttrs = ($def->attributeCallback)($instance, $params, $class, $function);
-                        foreach ($dynamicAttrs as $key => $value) {
-                            $spanBuilder->setAttribute($key, $value);
-                        }
-                    }
+                $span = $spanBuilder->startSpan();
+                Context::storage()->attach($span->storeInContext(Context::getCurrent()));
+            },
+            post: static function (
+                mixed $instance,
+                array $params,
+                mixed $returnValue,
+                ?\Throwable $exception,
+            ): void {
+                $scope = Context::storage()->scope();
+                if ($scope === null) {
+                    return;
+                }
 
-                    $span = $spanBuilder->startSpan();
-                    Context::storage()->attach($span->storeInContext(Context::getCurrent()));
-                },
-                post: static function (
-                    mixed $instance,
-                    array $params,
-                    mixed $returnValue,
-                    ?\Throwable $exception,
-                ): void {
-                    $scope = Context::storage()->scope();
-                    if ($scope === null) {
-                        return;
-                    }
+                $scope->detach();
+                $span = Span::fromContext($scope->context());
 
-                    $scope->detach();
-                    $span = Span::fromContext($scope->context());
+                if ($exception !== null) {
+                    $span->recordException($exception);
+                    $span->setStatus(StatusCode::STATUS_ERROR, $exception->getMessage());
+                } else {
+                    $span->setStatus(StatusCode::STATUS_OK);
+                }
 
-                    if ($exception !== null) {
-                        $span->recordException($exception);
-                        $span->setStatus(StatusCode::STATUS_ERROR, $exception->getMessage());
-                    } else {
-                        $span->setStatus(StatusCode::STATUS_OK);
-                    }
-
-                    $span->end();
-                },
-            );
-        }
+                $span->end();
+            },
+        );
     }
 
     /**
