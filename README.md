@@ -15,7 +15,7 @@ A CakePHP 5 plugin that adds OpenTelemetry instrumentation to your application. 
 ## Installation
 
 ```bash
-composer require kaz29/otel-instrumentation
+composer require kaz29/cakephp-otel-plugin
 ```
 
 Load the plugin in `config/bootstrap.php` or `Application::bootstrap()`:
@@ -32,6 +32,64 @@ $this->addPlugin('OtelInstrumentation');
 | `Table::find` | `Users.find(all)` |
 | `Table::save` | `Users.save` |
 | `Table::delete` | `Users.delete` |
+
+## Custom Instrumentation
+
+You can instrument any class method by registering custom hooks. The plugin uses the same `\OpenTelemetry\Instrumentation\hook()` mechanism as the built-in Controller/Table instrumentation.
+
+### Via Configure (simple)
+
+```php
+// config/bootstrap.php or config/app_local.php
+use Cake\Core\Configure;
+use OpenTelemetry\API\Trace\SpanKind;
+
+Configure::write('OtelInstrumentation.hooks', [
+    // Minimal — span name auto-generated as "App\Service\PaymentService::charge"
+    ['class' => \App\Service\PaymentService::class, 'method' => 'charge'],
+
+    // With options
+    [
+        'class' => \App\Service\PaymentService::class,
+        'method' => 'refund',
+        'spanName' => 'payment.refund',
+        'kind' => SpanKind::KIND_CLIENT,
+        'attributes' => ['payment.provider' => 'stripe'],
+    ],
+]);
+```
+
+### Via static registration (advanced)
+
+Use `CustomInstrumentation::register()` when you need dynamic attributes via callback:
+
+```php
+// In Application::bootstrap(), before $this->addPlugin('OtelInstrumentation')
+use OtelInstrumentation\Instrumentation\CustomInstrumentation;
+use OpenTelemetry\API\Trace\SpanKind;
+
+CustomInstrumentation::register(
+    \App\Service\PaymentService::class,
+    'charge',
+    spanName: 'payment.charge',
+    kind: SpanKind::KIND_CLIENT,
+    attributes: ['payment.provider' => 'stripe'],
+    attributeCallback: fn($instance, $params) => [
+        'payment.amount' => $params[0] ?? null,
+    ],
+);
+```
+
+### Options
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `class` | `string` | (required) | Fully qualified class name |
+| `method` | `string` | (required) | Method name to hook |
+| `spanName` | `string\|null` | `FQCN::method` | Custom span name |
+| `kind` | `int` | `KIND_INTERNAL` | SpanKind constant |
+| `attributes` | `array` | `[]` | Static span attributes |
+| `attributeCallback` | `Closure\|null` | `null` | `fn($instance, $params, $class, $function): array` |
 
 ## Environment Variables
 
