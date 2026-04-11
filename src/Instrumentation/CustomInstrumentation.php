@@ -14,6 +14,9 @@ final class CustomInstrumentation
     /** @var HookDefinition[] */
     private static array $definitions = [];
 
+    /** @var array<string, true> */
+    private static array $registeredKeys = [];
+
     private static bool $applied = false;
 
     /**
@@ -43,7 +46,9 @@ final class CustomInstrumentation
             attributeCallback: $attributeCallback,
         );
 
-        self::$definitions[] = $definition;
+        if (!self::addDefinition($definition)) {
+            return;
+        }
 
         if (self::$applied) {
             self::applyDefinition($definition);
@@ -55,7 +60,9 @@ final class CustomInstrumentation
      */
     public static function add(HookDefinition $definition): void
     {
-        self::$definitions[] = $definition;
+        if (!self::addDefinition($definition)) {
+            return;
+        }
 
         if (self::$applied) {
             self::applyDefinition($definition);
@@ -85,7 +92,9 @@ final class CustomInstrumentation
                 attributeCallback: $config['attributeCallback'] ?? null,
             );
 
-            self::$definitions[] = $definition;
+            if (!self::addDefinition($definition)) {
+                continue;
+            }
 
             if (self::$applied) {
                 self::applyDefinition($definition);
@@ -108,6 +117,24 @@ final class CustomInstrumentation
         foreach (self::$definitions as $definition) {
             self::applyDefinition($definition);
         }
+    }
+
+    /**
+     * Add a definition if not already registered for the same class/method.
+     *
+     * @return bool true if added, false if duplicate
+     */
+    private static function addDefinition(HookDefinition $definition): bool
+    {
+        $key = $definition->class . '::' . $definition->method;
+        if (isset(self::$registeredKeys[$key])) {
+            return false;
+        }
+
+        self::$registeredKeys[$key] = true;
+        self::$definitions[] = $definition;
+
+        return true;
     }
 
     private static function applyDefinition(HookDefinition $def): void
@@ -134,9 +161,13 @@ final class CustomInstrumentation
                 }
 
                 if ($def->attributeCallback !== null) {
-                    $dynamicAttrs = ($def->attributeCallback)($instance, $params, $class, $function);
-                    foreach ($dynamicAttrs as $key => $value) {
-                        $spanBuilder->setAttribute($key, $value);
+                    try {
+                        $dynamicAttrs = ($def->attributeCallback)($instance, $params, $class, $function);
+                        foreach ($dynamicAttrs as $key => $value) {
+                            $spanBuilder->setAttribute($key, $value);
+                        }
+                    } catch (\Throwable) {
+                        // Instrumentation must not break application code
                     }
                 }
 
@@ -175,6 +206,7 @@ final class CustomInstrumentation
     public static function reset(): void
     {
         self::$definitions = [];
+        self::$registeredKeys = [];
         self::$applied = false;
     }
 }

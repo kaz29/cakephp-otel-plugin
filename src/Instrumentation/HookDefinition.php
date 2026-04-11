@@ -26,17 +26,4 @@ final class HookDefinition
     ) {
     }
 
-    /**
-     * Resolve the span name for display.
-     * If spanName is explicitly set, return it.
-     * Otherwise, return FQCN::method.
-     */
-    public function resolveSpanName(): string
-    {
-        if ($this->spanName !== null) {
-            return $this->spanName;
-        }
-
-        return $this->class . '::' . $this->method;
-    }
 }

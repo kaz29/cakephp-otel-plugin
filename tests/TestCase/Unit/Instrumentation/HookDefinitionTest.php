@@ -9,27 +9,6 @@ use PHPUnit\Framework\TestCase;
 
 class HookDefinitionTest extends TestCase
 {
-    public function testResolveSpanNameWithDefault(): void
-    {
-        $def = new HookDefinition(
-            class: 'App\\Service\\PaymentService',
-            method: 'charge',
-        );
-
-        $this->assertSame('App\\Service\\PaymentService::charge', $def->resolveSpanName());
-    }
-
-    public function testResolveSpanNameWithOverride(): void
-    {
-        $def = new HookDefinition(
-            class: 'App\\Service\\PaymentService',
-            method: 'charge',
-            spanName: 'payment.charge',
-        );
-
-        $this->assertSame('payment.charge', $def->resolveSpanName());
-    }
-
     public function testDefaultValues(): void
     {
         $def = new HookDefinition(
