@@ -4,13 +4,12 @@ declare(strict_types=1);
 namespace OtelInstrumentation\Test\TestCase\Unit\Util;
 
 use OtelInstrumentation\Util\DbSystemResolver;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 class DbSystemResolverTest extends TestCase
 {
-    /**
-     * @dataProvider driverClassProvider
-     */
+    #[DataProvider('driverClassProvider')]
     public function testResolveFromDriverClass(string $driverClass, string $expected): void
     {
         $this->assertSame($expected, DbSystemResolver::resolveFromDriverClass($driverClass));
