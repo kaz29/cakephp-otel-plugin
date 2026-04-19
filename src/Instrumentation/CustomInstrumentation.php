@@ -19,6 +19,8 @@ final class CustomInstrumentation
 
     private static bool $applied = false;
 
+    private static ?CachedInstrumentation $instrumentation = null;
+
     /**
      * Register a hook for a class method.
      *
@@ -137,9 +139,14 @@ final class CustomInstrumentation
         return true;
     }
 
+    private static function getInstrumentation(): CachedInstrumentation
+    {
+        return self::$instrumentation ??= new CachedInstrumentation('otel-instrumentation.cakephp.custom');
+    }
+
     private static function applyDefinition(HookDefinition $def): void
     {
-        $instrumentation = new CachedInstrumentation('otel-instrumentation.cakephp.custom');
+        $instrumentation = self::getInstrumentation();
 
         \OpenTelemetry\Instrumentation\hook(
             class: $def->class,
@@ -166,8 +173,13 @@ final class CustomInstrumentation
                         foreach ($dynamicAttrs as $key => $value) {
                             $spanBuilder->setAttribute($key, $value);
                         }
-                    } catch (\Throwable) {
-                        // Instrumentation must not break application code
+                    } catch (\Throwable $e) {
+                        error_log(sprintf(
+                            'OtelInstrumentation: attributeCallback error for %s::%s — %s',
+                            $class,
+                            $function,
+                            $e->getMessage(),
+                        ));
                     }
                 }
 
@@ -201,12 +213,18 @@ final class CustomInstrumentation
     }
 
     /**
-     * Reset state (for testing).
+     * Reset internal registration state (for testing).
+     *
+     * Note: This does NOT unregister hooks already applied via
+     * \OpenTelemetry\Instrumentation\hook() — zend_observer hooks
+     * cannot be removed at runtime. Calling apply() after reset()
+     * may result in duplicate hooks for previously registered methods.
      */
     public static function reset(): void
     {
         self::$definitions = [];
         self::$registeredKeys = [];
         self::$applied = false;
+        self::$instrumentation = null;
     }
 }

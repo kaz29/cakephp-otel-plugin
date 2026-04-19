@@ -16,6 +16,14 @@ final class HookDefinition
      * @param (\Closure(object|null, array, string, string): array<string, mixed>)|null $attributeCallback
      *     Dynamic attributes callback: fn($instance, $params, $class, $function) => ['key' => 'value']; $instance may be null for static methods
      */
+    private const VALID_SPAN_KINDS = [
+        SpanKind::KIND_INTERNAL,
+        SpanKind::KIND_SERVER,
+        SpanKind::KIND_CLIENT,
+        SpanKind::KIND_PRODUCER,
+        SpanKind::KIND_CONSUMER,
+    ];
+
     public function __construct(
         public readonly string $class,
         public readonly string $method,
@@ -24,6 +32,10 @@ final class HookDefinition
         public readonly array $attributes = [],
         public readonly ?\Closure $attributeCallback = null,
     ) {
+        if (!in_array($kind, self::VALID_SPAN_KINDS, true)) {
+            throw new \InvalidArgumentException(
+                sprintf('Invalid SpanKind value: %d. Use SpanKind::KIND_* constants.', $kind)
+            );
+        }
     }
-
 }

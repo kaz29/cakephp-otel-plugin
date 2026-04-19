@@ -42,4 +42,16 @@ class HookDefinitionTest extends TestCase
         $this->assertSame(['provider' => 'stripe'], $def->attributes);
         $this->assertSame($callback, $def->attributeCallback);
     }
+
+    public function testInvalidSpanKindThrows(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Invalid SpanKind value: 999');
+
+        new HookDefinition(
+            class: 'App\\Service\\PaymentService',
+            method: 'charge',
+            kind: 999,
+        );
+    }
 }

@@ -37,6 +37,8 @@ $this->addPlugin('OtelInstrumentation');
 
 任意のクラス・メソッドにフックを登録してスパンを自動生成できます。内部では組み込みの Controller / Table 計装と同じ `\OpenTelemetry\Instrumentation\hook()` を使用しています。
 
+> **注意:** `Controller::invokeAction`、`Table::find`、`Table::save`、`Table::delete` はプラグインが自動計装済みです。これらをカスタムフックとして登録するとスパンが重複します。
+
 ### Configure で登録（シンプル）
 
 ```php
@@ -89,7 +91,7 @@ CustomInstrumentation::register(
 | `spanName` | `string\|null` | `FQCN::method` | スパン名のオーバーライド |
 | `kind` | `int` | `KIND_INTERNAL` | SpanKind 定数 |
 | `attributes` | `array` | `[]` | 静的なスパン属性 |
-| `attributeCallback` | `Closure\|null` | `null` | `fn($instance, $params, $class, $function): array` |
+| `attributeCallback` | `Closure\|null` | `null` | `fn($instance, $params, $class, $function): array` — このオプションは `register()` で使用してください |
 
 ## 環境変数
 

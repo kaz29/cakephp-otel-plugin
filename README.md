@@ -37,6 +37,8 @@ $this->addPlugin('OtelInstrumentation');
 
 You can instrument any class method by registering custom hooks. The plugin uses the same `\OpenTelemetry\Instrumentation\hook()` mechanism as the built-in Controller/Table instrumentation.
 
+> **Note:** `Controller::invokeAction`, `Table::find`, `Table::save`, and `Table::delete` are already instrumented by the plugin. Do not register them as custom hooks — doing so would create duplicate spans.
+
 ### Via Configure (simple)
 
 ```php
@@ -89,7 +91,7 @@ CustomInstrumentation::register(
 | `spanName` | `string\|null` | `FQCN::method` | Custom span name |
 | `kind` | `int` | `KIND_INTERNAL` | SpanKind constant |
 | `attributes` | `array` | `[]` | Static span attributes |
-| `attributeCallback` | `Closure\|null` | `null` | `fn($instance, $params, $class, $function): array` |
+| `attributeCallback` | `Closure\|null` | `null` | `fn($instance, $params, $class, $function): array` — use `register()` instead of Configure for this option |
 
 ## Environment Variables
 
