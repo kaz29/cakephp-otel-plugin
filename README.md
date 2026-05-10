@@ -33,6 +33,29 @@ $this->addPlugin('OtelInstrumentation');
 | `Table::save` | `Users.save` |
 | `Table::delete` | `Users.delete` |
 
+## Excluding Instrumentation
+
+Some endpoints — health checks called every few seconds by load balancers and orchestrators, for example — generate high volumes of low-value spans that bloat your telemetry backend. You can opt out specific Controller/action pairs from instrumentation:
+
+```php
+// config/bootstrap.php or config/app_local.php
+use Cake\Core\Configure;
+
+Configure::write('OtelInstrumentation.exclude', [
+    // Skip every action on HealthController (health/readiness/liveness probes)
+    ['controller' => \App\Controller\HealthController::class, 'action' => '*'],
+
+    // Skip a specific action while leaving others instrumented
+    ['controller' => \App\Controller\PostsController::class, 'action' => 'ping'],
+]);
+```
+
+Matching is **exact** — `controller` must be the fully-qualified class name and `action` must match the action name verbatim. The single exception is `'action' => '*'`, which matches every action of that controller. `'*'` is not allowed on `controller`.
+
+While an excluded action is executing, **child Table::find/save/delete calls and custom-hook spans are also suppressed**, so a single rule cleans up the whole subtree. Once the action returns, instrumentation resumes for subsequent requests.
+
+This setting only affects HTTP requests dispatched through `Controller::invokeAction`. CLI commands are not instrumented in the first place.
+
 ## Custom Instrumentation
 
 You can instrument any class method by registering custom hooks. The plugin uses the same `\OpenTelemetry\Instrumentation\hook()` mechanism as the built-in Controller/Table instrumentation.

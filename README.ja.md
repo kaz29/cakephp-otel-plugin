@@ -33,6 +33,29 @@ $this->addPlugin('OtelInstrumentation');
 | `Table::save` | `Users.save` |
 | `Table::delete` | `Users.delete` |
 
+## Instrumentation の除外
+
+ロードバランサーやオーケストレーターから秒単位で叩かれる死活監視エンドポイントなど、価値の低いスパンを大量に生成するアクションは、計装対象から外したくなることがあります。Controller/Action 単位で除外を宣言できます:
+
+```php
+// config/bootstrap.php または config/app_local.php
+use Cake\Core\Configure;
+
+Configure::write('OtelInstrumentation.exclude', [
+    // HealthController の全アクションを除外（health/readiness/liveness 系）
+    ['controller' => \App\Controller\HealthController::class, 'action' => '*'],
+
+    // 特定の action だけを除外（他の action は通常通り計装される）
+    ['controller' => \App\Controller\PostsController::class, 'action' => 'ping'],
+]);
+```
+
+マッチングは**完全一致**です。`controller` は完全修飾クラス名、`action` はアクション名そのもの。例外として `'action' => '*'` のみワイルドカードとして扱い、その Controller の全アクションにマッチします。`'*'` を `controller` 側に書くことはできません。
+
+除外対象アクションの実行中は、**配下で呼ばれた `Table::find/save/delete` のスパンや、カスタム Instrumentation のスパンも連動して抑制されます**。1つのルールでサブツリー全体を一括で除外できる設計です。アクションを抜けると、次のリクエストからは通常通り計装が再開されます。
+
+この設定は HTTP リクエストの `Controller::invokeAction` 経由のみ影響します。CLI コマンドはそもそも計装対象外です。
+
 ## カスタム Instrumentation
 
 任意のクラス・メソッドにフックを登録してスパンを自動生成できます。内部では組み込みの Controller / Table 計装と同じ `\OpenTelemetry\Instrumentation\hook()` を使用しています。
