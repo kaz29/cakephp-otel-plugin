@@ -159,6 +159,10 @@ final class CustomInstrumentation
                 ?string $filename,
                 ?int $lineno,
             ) use ($instrumentation, $def): void {
+                if (ExclusionRegistry::isCurrentlyExcluded()) {
+                    return;
+                }
+
                 $spanBuilder = $instrumentation->tracer()
                     ->spanBuilder($def->spanName ?? ($class . '::' . $function))
                     ->setSpanKind($def->kind);
@@ -192,6 +196,10 @@ final class CustomInstrumentation
                 mixed $returnValue,
                 ?\Throwable $exception,
             ): void {
+                if (ExclusionRegistry::isCurrentlyExcluded()) {
+                    return;
+                }
+
                 $scope = Context::storage()->scope();
                 if ($scope === null) {
                     return;
