@@ -9,6 +9,7 @@ use Cake\Http\ServerRequest;
 use Cake\Core\Configure;
 use OpenTelemetry\API\Trace\SpanKind;
 use OpenTelemetry\API\Trace\StatusCode;
+use OtelInstrumentation\Instrumentation\ExclusionRegistry;
 use OtelInstrumentation\Test\TestCase\OtelTestTrait;
 use PHPUnit\Framework\TestCase;
 
@@ -42,6 +43,7 @@ class ControllerInstrumentationTest extends TestCase
     protected function tearDown(): void
     {
         parent::tearDown();
+        ExclusionRegistry::reset();
         $this->resetOtel();
     }
 
