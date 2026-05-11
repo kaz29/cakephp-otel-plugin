@@ -8,6 +8,7 @@ use Cake\ORM\Table;
 use Cake\ORM\TableRegistry;
 use OpenTelemetry\API\Trace\SpanKind;
 use OpenTelemetry\API\Trace\StatusCode;
+use OtelInstrumentation\Instrumentation\ExclusionRegistry;
 use OtelInstrumentation\Test\TestCase\OtelTestTrait;
 use PHPUnit\Framework\TestCase;
 
@@ -46,6 +47,7 @@ class TableInstrumentationTest extends TestCase
     {
         parent::tearDown();
         TableRegistry::getTableLocator()->clear();
+        ExclusionRegistry::reset();
         $this->resetOtel();
     }
 

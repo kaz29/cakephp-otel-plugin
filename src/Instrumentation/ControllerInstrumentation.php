@@ -8,6 +8,7 @@ use OpenTelemetry\API\Trace\Span;
 use OpenTelemetry\API\Trace\SpanKind;
 use OpenTelemetry\API\Trace\StatusCode;
 use OpenTelemetry\Context\Context;
+use OtelInstrumentation\Instrumentation\ExclusionRegistry;
 
 $instrumentation = new CachedInstrumentation('otel-instrumentation.cakephp.controller');
 
@@ -17,20 +18,31 @@ $instrumentation = new CachedInstrumentation('otel-instrumentation.cakephp.contr
     pre: static function (Controller $controller, array $params, string $class, string $function, ?string $filename, ?int $lineno) use ($instrumentation): void {
         $request = $controller->getRequest();
         $action = $request->getParam('action', 'unknown');
+        $controllerClass = get_class($controller);
+
+        if (ExclusionRegistry::enter($controllerClass, $action)) {
+            return;
+        }
 
         $span = $instrumentation->tracer()
-            ->spanBuilder(get_class($controller) . '::' . $action)
+            ->spanBuilder($controllerClass . '::' . $action)
             ->setSpanKind(SpanKind::KIND_SERVER)
             ->setAttribute('http.method', $request->getMethod())
             ->setAttribute('http.url', (string) $request->getUri())
             ->setAttribute('http.route', $action)
-            ->setAttribute('cake.controller', get_class($controller))
+            ->setAttribute('cake.controller', $controllerClass)
             ->setAttribute('cake.action', $action)
             ->startSpan();
 
         Context::storage()->attach($span->storeInContext(Context::getCurrent()));
     },
     post: static function (Controller $controller, array $params, mixed $returnValue, ?\Throwable $exception): void {
+        if (ExclusionRegistry::isCurrentlyExcluded()) {
+            ExclusionRegistry::leave();
+
+            return;
+        }
+
         $scope = Context::storage()->scope();
         if ($scope === null) {
             return;

@@ -7,6 +7,7 @@ use OpenTelemetry\API\Trace\Span;
 use OpenTelemetry\API\Trace\SpanKind;
 use OpenTelemetry\API\Trace\StatusCode;
 use OpenTelemetry\Context\Context;
+use OtelInstrumentation\Instrumentation\ExclusionRegistry;
 use OtelInstrumentation\Util\DbSystemResolver;
 
 $instrumentation = new CachedInstrumentation('otel-instrumentation.cakephp.model');
@@ -16,6 +17,10 @@ $instrumentation = new CachedInstrumentation('otel-instrumentation.cakephp.model
     class: Table::class,
     function: 'find',
     pre: static function (Table $table, array $params, string $class, string $function, ?string $filename, ?int $lineno) use ($instrumentation): void {
+        if (ExclusionRegistry::isCurrentlyExcluded()) {
+            return;
+        }
+
         $findType = $params[0] ?? 'all';
         $alias = $table->getAlias();
 
@@ -30,6 +35,10 @@ $instrumentation = new CachedInstrumentation('otel-instrumentation.cakephp.model
         Context::storage()->attach($span->storeInContext(Context::getCurrent()));
     },
     post: static function (Table $table, array $params, mixed $returnValue, ?\Throwable $exception): void {
+        if (ExclusionRegistry::isCurrentlyExcluded()) {
+            return;
+        }
+
         $scope = Context::storage()->scope();
         if ($scope === null) {
             return;
@@ -54,6 +63,10 @@ $instrumentation = new CachedInstrumentation('otel-instrumentation.cakephp.model
     class: Table::class,
     function: 'save',
     pre: static function (Table $table, array $params, string $class, string $function, ?string $filename, ?int $lineno) use ($instrumentation): void {
+        if (ExclusionRegistry::isCurrentlyExcluded()) {
+            return;
+        }
+
         $alias = $table->getAlias();
         $entity = $params[0] ?? null;
         $isNew = $entity !== null && method_exists($entity, 'isNew') ? $entity->isNew() : null;
@@ -72,6 +85,10 @@ $instrumentation = new CachedInstrumentation('otel-instrumentation.cakephp.model
         Context::storage()->attach($span->storeInContext(Context::getCurrent()));
     },
     post: static function (Table $table, array $params, mixed $returnValue, ?\Throwable $exception): void {
+        if (ExclusionRegistry::isCurrentlyExcluded()) {
+            return;
+        }
+
         $scope = Context::storage()->scope();
         if ($scope === null) {
             return;
@@ -98,6 +115,10 @@ $instrumentation = new CachedInstrumentation('otel-instrumentation.cakephp.model
     class: Table::class,
     function: 'delete',
     pre: static function (Table $table, array $params, string $class, string $function, ?string $filename, ?int $lineno) use ($instrumentation): void {
+        if (ExclusionRegistry::isCurrentlyExcluded()) {
+            return;
+        }
+
         $alias = $table->getAlias();
 
         $span = $instrumentation->tracer()
@@ -110,6 +131,10 @@ $instrumentation = new CachedInstrumentation('otel-instrumentation.cakephp.model
         Context::storage()->attach($span->storeInContext(Context::getCurrent()));
     },
     post: static function (Table $table, array $params, mixed $returnValue, ?\Throwable $exception): void {
+        if (ExclusionRegistry::isCurrentlyExcluded()) {
+            return;
+        }
+
         $scope = Context::storage()->scope();
         if ($scope === null) {
             return;
