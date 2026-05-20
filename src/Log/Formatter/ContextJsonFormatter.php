@@ -15,14 +15,12 @@ class ContextJsonFormatter extends AbstractFormatter
 
     public function format(mixed $level, string $message, array $context = []): string
     {
-        $json = json_encode(
-            array_merge(
-                $context,
-                ['level' => (string)$level, 'message' => $message],
-                $this->_config['dateFormat'] !== null ? ['date' => date($this->_config['dateFormat'])] : [],
-            ),
-            JSON_THROW_ON_ERROR | $this->_config['flags'],
-        );
+        $fixed = ['level' => (string)$level, 'message' => $message];
+        if ($this->_config['dateFormat'] !== null) {
+            $fixed = ['date' => date($this->_config['dateFormat'])] + $fixed;
+        }
+
+        $json = json_encode($fixed + $context, JSON_THROW_ON_ERROR | $this->_config['flags']);
 
         return $this->_config['appendNewline'] ? $json . "\n" : $json;
     }

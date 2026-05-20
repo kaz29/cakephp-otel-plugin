@@ -32,6 +32,7 @@ class ContextJsonFormatterTest extends TestCase
         $data = json_decode(trim($result), true);
 
         $this->assertArrayHasKey('date', $data);
+        $this->assertSame('date', array_key_first($data));
     }
 
     public function testFormatIncludesContextFields(): void
