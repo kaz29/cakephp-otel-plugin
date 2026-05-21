@@ -79,6 +79,65 @@ class ControllerInstrumentationTest extends TestCase
         $this->assertNotNull($this->getSpanAttribute($span, 'cake.controller'));
     }
 
+    public function testInvokeActionPropagatesTraceparentHeader(): void
+    {
+        $traceId = 'aabbccddeeff00112233445566778899';
+        $parentSpanId = '0011223344556677';
+        $traceparent = '00-' . $traceId . '-' . $parentSpanId . '-01';
+
+        $request = new ServerRequest([
+            'url' => '/articles/index',
+            'environment' => [
+                'REQUEST_METHOD' => 'GET',
+                'REQUEST_URI' => '/articles/index',
+                'HTTP_TRACEPARENT' => $traceparent,
+            ],
+        ]);
+        $request = $request->withParam('action', 'index');
+
+        $controller = new class ($request) extends Controller {
+            public function index(): void
+            {
+            }
+        };
+
+        $controller->invokeAction(fn () => $controller->getResponse(), []);
+
+        $spans = $this->getSpans();
+        $this->assertGreaterThanOrEqual(1, count($spans));
+
+        $span = $spans[0];
+        $this->assertSame($traceId, $span->getTraceId());
+        $this->assertSame($parentSpanId, $span->getParentSpanId());
+    }
+
+    public function testInvokeActionWithoutTraceparentCreatesNewTrace(): void
+    {
+        $request = new ServerRequest([
+            'url' => '/articles/index',
+            'environment' => [
+                'REQUEST_METHOD' => 'GET',
+                'REQUEST_URI' => '/articles/index',
+            ],
+        ]);
+        $request = $request->withParam('action', 'index');
+
+        $controller = new class ($request) extends Controller {
+            public function index(): void
+            {
+            }
+        };
+
+        $controller->invokeAction(fn () => $controller->getResponse(), []);
+
+        $spans = $this->getSpans();
+        $this->assertGreaterThanOrEqual(1, count($spans));
+
+        $span = $spans[0];
+        $this->assertNotEmpty($span->getTraceId());
+        $this->assertSame('0000000000000000', $span->getParentSpanId());
+    }
+
     public function testInvokeActionRecordsExceptionOnError(): void
     {
         $request = new ServerRequest([

@@ -7,7 +7,9 @@ use OpenTelemetry\API\Instrumentation\CachedInstrumentation;
 use OpenTelemetry\API\Trace\Span;
 use OpenTelemetry\API\Trace\SpanKind;
 use OpenTelemetry\API\Trace\StatusCode;
+use OpenTelemetry\API\Trace\Propagation\TraceContextPropagator;
 use OpenTelemetry\Context\Context;
+use OpenTelemetry\Context\Propagation\ArrayAccessGetterSetter;
 use OtelInstrumentation\Instrumentation\ExclusionRegistry;
 
 $instrumentation = new CachedInstrumentation('otel-instrumentation.cakephp.controller');
@@ -24,9 +26,15 @@ $instrumentation = new CachedInstrumentation('otel-instrumentation.cakephp.contr
             return;
         }
 
+        $parentContext = TraceContextPropagator::getInstance()->extract(
+            $request->getHeaders(),
+            ArrayAccessGetterSetter::getInstance()
+        );
+
         $span = $instrumentation->tracer()
             ->spanBuilder($controllerClass . '::' . $action)
             ->setSpanKind(SpanKind::KIND_SERVER)
+            ->setParent($parentContext)
             ->setAttribute('http.method', $request->getMethod())
             ->setAttribute('http.url', (string) $request->getUri())
             ->setAttribute('http.route', $action)
@@ -34,7 +42,7 @@ $instrumentation = new CachedInstrumentation('otel-instrumentation.cakephp.contr
             ->setAttribute('cake.action', $action)
             ->startSpan();
 
-        Context::storage()->attach($span->storeInContext(Context::getCurrent()));
+        Context::storage()->attach($span->storeInContext($parentContext));
     },
     post: static function (Controller $controller, array $params, mixed $returnValue, ?\Throwable $exception): void {
         if (ExclusionRegistry::isCurrentlyExcluded()) {
