@@ -106,7 +106,7 @@ class ControllerInstrumentationTest extends TestCase
         $spans = $this->getSpans();
         $this->assertGreaterThanOrEqual(1, count($spans));
 
-        $span = $spans[0];
+        $span = $spans[count($spans) - 1];
         $this->assertSame($traceId, $span->getTraceId());
         $this->assertSame($parentSpanId, $span->getParentSpanId());
     }
@@ -133,7 +133,7 @@ class ControllerInstrumentationTest extends TestCase
         $spans = $this->getSpans();
         $this->assertGreaterThanOrEqual(1, count($spans));
 
-        $span = $spans[0];
+        $span = $spans[count($spans) - 1];
         $this->assertNotEmpty($span->getTraceId());
         $this->assertSame('0000000000000000', $span->getParentSpanId());
     }
