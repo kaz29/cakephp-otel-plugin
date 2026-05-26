@@ -1,0 +1,21 @@
+# Development Dockerfile - source is volume-mounted
+FROM php:8.3-fpm
+
+RUN apt-get update && apt-get install -y \
+    git unzip libpq-dev libicu-dev nginx supervisor \
+    && docker-php-ext-install intl pdo_pgsql opcache \
+    && pecl install opentelemetry && docker-php-ext-enable opentelemetry \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Composer
+COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
+
+WORKDIR /var/www/html
+
+COPY docker/nginx/default.conf /etc/nginx/sites-available/default
+COPY docker/supervisor/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+COPY docker/php/www-overrides.conf /usr/local/etc/php-fpm.d/zz-overrides.conf
+
+EXPOSE 80
+
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
