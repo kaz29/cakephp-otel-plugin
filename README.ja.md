@@ -151,6 +151,55 @@ public function middleware(MiddlewareQueue $middlewareQueue): MiddlewareQueue
 }
 ```
 
+## GuzzleMiddleware
+
+アウトバウンド HTTP リクエストに W3C `traceparent`（および `tracestate`）ヘッダーを注入し、現在のトレースコンテキストを下流サービスに伝播する Guzzle ミドルウェア。
+
+アプリケーションの `composer.json` に `guzzlehttp/guzzle ^7.0` が必要。
+
+### ファクトリ経由のセットアップ（推奨）
+
+```php
+use GuzzleHttp\Client;
+use OtelInstrumentation\Middleware\TraceContext\GuzzleClientFactory;
+
+// Application::services() 内で
+$container->add(Client::class, function () {
+    return GuzzleClientFactory::create([
+        'base_uri' => Configure::read('ExternalApi.baseUri'),
+    ]);
+});
+```
+
+### HandlerStack 経由のセットアップ（手動）
+
+```php
+use GuzzleHttp\Client;
+use GuzzleHttp\HandlerStack;
+use OtelInstrumentation\Middleware\TraceContext\GuzzleMiddleware;
+
+$stack = HandlerStack::create();
+$stack->push(new GuzzleMiddleware(), 'traceparent');
+$client = new Client(['handler' => $stack]);
+```
+
+### CLIENT スパンの作成
+
+`createSpan: true` を指定すると、アウトバウンドリクエストごとに `KIND_CLIENT` スパンも記録されます。スパンには `http.request.method`、`server.address`、`url.full`、`http.response.status_code` 属性が付与されます。[OTel HTTP クライアントセマンティック規約](https://opentelemetry.io/docs/specs/semconv/http/http-spans/)に準拠し、5xx は `STATUS_ERROR`、それ以外は `STATUS_UNSET` です。
+
+```php
+// ファクトリ経由
+GuzzleClientFactory::create(['base_uri' => '...'], createSpan: true);
+
+// カスタムスパン名を指定（デフォルトの "METHOD hostname" 形式を置き換え）
+GuzzleClientFactory::create(['base_uri' => '...'], createSpan: true, spanName: 'external.payment-api');
+
+// HandlerStack 経由
+$stack->push(new GuzzleMiddleware(createSpan: true, spanName: 'external.payment-api'), 'traceparent');
+```
+
+> **注意:** `GuzzleClientFactory::create()` に `handler` キーを含む `$clientConfig` を渡すと `InvalidArgumentException` がスローされます。ハンドラーはファクトリ内部で管理されます。
+
 ## TraceAwareLogger
 
 PSR-3 LoggerInterface の Decorator。ログの `context` に `trace_id` / `span_id` を自動付与する。

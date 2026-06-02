@@ -1,5 +1,11 @@
 FROM kaz29/php-apache:8.4.1
 
+RUN set -eux; \
+  curl -fL --output /tmp/pie.phar https://github.com/php/pie/releases/latest/download/pie.phar \
+  && mv /tmp/pie.phar /usr/local/bin/pie \
+  && chmod +x /usr/local/bin/pie
+
 RUN pecl install opentelemetry && docker-php-ext-enable opentelemetry
+RUN pie install pie-extensions/grpc:1.80.0
 
 WORKDIR /srv/app
