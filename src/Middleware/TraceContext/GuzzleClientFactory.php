@@ -35,14 +35,17 @@ class GuzzleClientFactory
      * @param array<string, mixed> $clientConfig Guzzle client config. Do not include 'handler'.
      * @param bool $createSpan Whether to also create a KIND_CLIENT span per request.
      */
-    public static function create(array $clientConfig = [], bool $createSpan = false): Client
-    {
+    public static function create(
+        array $clientConfig = [],
+        bool $createSpan = false,
+        ?string $spanName = null,
+    ): Client {
         if (isset($clientConfig['handler'])) {
             throw new \InvalidArgumentException("'handler' key is managed by GuzzleClientFactory and must not be provided.");
         }
 
         $stack = HandlerStack::create();
-        $stack->push(new GuzzleMiddleware($createSpan), 'traceparent');
+        $stack->push(new GuzzleMiddleware($createSpan, $spanName), 'traceparent');
 
         return new Client(array_merge($clientConfig, ['handler' => $stack]));
     }

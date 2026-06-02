@@ -33,7 +33,10 @@ class GuzzleMiddleware
      * @param bool $createSpan When true, a KIND_CLIENT span is created for each
      *                         outbound request. Default false: inject headers only.
      */
-    public function __construct(private readonly bool $createSpan = false) {}
+    public function __construct(
+        private readonly bool $createSpan = false,
+        private readonly ?string $spanName = null,
+    ) {}
 
     public function __invoke(callable $handler): callable
     {
@@ -61,7 +64,7 @@ class GuzzleMiddleware
 
         $span = Globals::tracerProvider()
             ->getTracer('otel-instrumentation.cakephp.guzzle')
-            ->spanBuilder($method . ' ' . $uri->getHost())
+            ->spanBuilder($this->spanName ?? ($method . ' ' . $uri->getHost()))
             ->setSpanKind(SpanKind::KIND_CLIENT)
             ->setAttribute('http.request.method', $method)
             ->setAttribute('server.address', $uri->getHost())

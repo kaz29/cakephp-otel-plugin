@@ -171,6 +171,21 @@ class GuzzleMiddlewareTest extends TestCase
         $this->assertSame(StatusCode::STATUS_ERROR, $spans[0]->getStatus()->getCode());
     }
 
+    public function testCustomSpanNameIsUsed(): void
+    {
+        $history = [];
+        $client = $this->buildClient(
+            new GuzzleMiddleware(createSpan: true, spanName: 'external.payment-api'),
+            new MockHandler([new Response(200)]),
+            $history,
+        );
+        $client->get('https://api.example.com/users');
+
+        $spans = $this->getSpans();
+        $this->assertCount(1, $spans);
+        $this->assertSame('external.payment-api', $spans[0]->getName());
+    }
+
     public function testNoSpanCreatedWhenCreateSpanFalse(): void
     {
         $history = [];

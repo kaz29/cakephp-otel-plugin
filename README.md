@@ -191,8 +191,11 @@ Pass `createSpan: true` to also record a `KIND_CLIENT` span for each outbound re
 // Via factory
 GuzzleClientFactory::create(['base_uri' => '...'], createSpan: true);
 
+// With a custom span name (replaces the default "METHOD hostname" format)
+GuzzleClientFactory::create(['base_uri' => '...'], createSpan: true, spanName: 'external.payment-api');
+
 // Via HandlerStack
-$stack->push(new GuzzleMiddleware(createSpan: true), 'traceparent');
+$stack->push(new GuzzleMiddleware(createSpan: true, spanName: 'external.payment-api'), 'traceparent');
 ```
 
 > **Note:** `GuzzleClientFactory::create()` throws `InvalidArgumentException` if you pass a `handler` key in `$clientConfig` — the handler is managed internally by the factory.

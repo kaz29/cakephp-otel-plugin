@@ -191,8 +191,11 @@ $client = new Client(['handler' => $stack]);
 // ファクトリ経由
 GuzzleClientFactory::create(['base_uri' => '...'], createSpan: true);
 
+// カスタムスパン名を指定（デフォルトの "METHOD hostname" 形式を置き換え）
+GuzzleClientFactory::create(['base_uri' => '...'], createSpan: true, spanName: 'external.payment-api');
+
 // HandlerStack 経由
-$stack->push(new GuzzleMiddleware(createSpan: true), 'traceparent');
+$stack->push(new GuzzleMiddleware(createSpan: true, spanName: 'external.payment-api'), 'traceparent');
 ```
 
 > **注意:** `GuzzleClientFactory::create()` に `handler` キーを含む `$clientConfig` を渡すと `InvalidArgumentException` がスローされます。ハンドラーはファクトリ内部で管理されます。

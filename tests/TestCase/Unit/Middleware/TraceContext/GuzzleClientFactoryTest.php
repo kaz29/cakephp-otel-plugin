@@ -55,6 +55,19 @@ class GuzzleClientFactoryTest extends TestCase
         $this->assertStringContainsString('traceparent', (string) $stack);
     }
 
+    public function testCustomSpanNameIsPassedThrough(): void
+    {
+        $history = [];
+        $stack = HandlerStack::create(new \GuzzleHttp\Handler\MockHandler([new \GuzzleHttp\Psr7\Response(200)]));
+        $stack->push(new \OtelInstrumentation\Middleware\TraceContext\GuzzleMiddleware(createSpan: true, spanName: 'external.payment-api'), 'traceparent');
+        $client = new \GuzzleHttp\Client(['handler' => $stack]);
+        $client->get('https://api.example.com/users');
+
+        $spans = $this->getSpans();
+        $this->assertCount(1, $spans);
+        $this->assertSame('external.payment-api', $spans[0]->getName());
+    }
+
     public function testThrowsWhenHandlerKeyProvided(): void
     {
         $this->expectException(\InvalidArgumentException::class);
