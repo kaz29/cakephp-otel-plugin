@@ -105,10 +105,50 @@ class GuzzleMiddlewareTest extends TestCase
         $this->assertCount(1, $spans);
         $this->assertSame(SpanKind::KIND_CLIENT, $spans[0]->getKind());
         $this->assertSame('GET api.example.com', $spans[0]->getName());
-        $this->assertSame(StatusCode::STATUS_OK, $spans[0]->getStatus()->getCode());
+        $this->assertSame(StatusCode::STATUS_UNSET, $spans[0]->getStatus()->getCode());
         $this->assertSame('GET', $this->getSpanAttribute($spans[0], 'http.request.method'));
         $this->assertSame('api.example.com', $this->getSpanAttribute($spans[0], 'server.address'));
         $this->assertSame(200, $this->getSpanAttribute($spans[0], 'http.response.status_code'));
+    }
+
+    public function testSpanStatusErrorOnServerError(): void
+    {
+        $history = [];
+        $client = $this->buildClient(
+            new GuzzleMiddleware(createSpan: true),
+            new MockHandler([new Response(500)]),
+            $history,
+        );
+
+        try {
+            $client->get('https://api.example.com/');
+        } catch (\Exception) {
+        }
+
+        $spans = $this->getSpans();
+        $this->assertCount(1, $spans);
+        $this->assertSame(StatusCode::STATUS_ERROR, $spans[0]->getStatus()->getCode());
+    }
+
+    public function testInjectsClientSpanIdWhenCreateSpanEnabled(): void
+    {
+        $history = [];
+        $client = $this->buildClient(
+            new GuzzleMiddleware(createSpan: true),
+            new MockHandler([new Response(200)]),
+            $history,
+        );
+        $client->get('https://api.example.com/');
+
+        $spans = $this->getSpans();
+        $this->assertCount(1, $spans);
+
+        $sentRequest = $history[0]['request'];
+        $this->assertTrue($sentRequest->hasHeader('traceparent'));
+
+        $traceparent = $sentRequest->getHeaderLine('traceparent');
+        $spanId = $spans[0]->getContext()->getSpanId();
+        $this->assertStringContainsString($spanId, $traceparent);
     }
 
     public function testSpanEndsWithErrorOnConnectException(): void

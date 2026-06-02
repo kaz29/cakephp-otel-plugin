@@ -37,6 +37,10 @@ class GuzzleClientFactory
      */
     public static function create(array $clientConfig = [], bool $createSpan = false): Client
     {
+        if (isset($clientConfig['handler'])) {
+            throw new \InvalidArgumentException("'handler' key is managed by GuzzleClientFactory and must not be provided.");
+        }
+
         $stack = HandlerStack::create();
         $stack->push(new GuzzleMiddleware($createSpan), 'traceparent');
 

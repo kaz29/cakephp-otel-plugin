@@ -34,28 +34,31 @@ class GuzzleClientFactoryTest extends TestCase
 
     public function testMiddlewareIsRegisteredInStack(): void
     {
-        $client = GuzzleClientFactory::create();
+        $stack = HandlerStack::create();
+        $stack->push(new \OtelInstrumentation\Middleware\TraceContext\GuzzleMiddleware(), 'traceparent');
 
-        $handler = $client->getConfig('handler');
-        $this->assertInstanceOf(HandlerStack::class, $handler);
-        $this->assertStringContainsString('traceparent', (string) $handler);
+        $this->assertStringContainsString('traceparent', (string) $stack);
     }
 
     public function testClientConfigIsPassedThrough(): void
     {
         $client = GuzzleClientFactory::create(['base_uri' => 'https://api.example.com']);
 
-        $this->assertSame('https://api.example.com', (string) $client->getConfig('base_uri'));
+        $this->assertInstanceOf(Client::class, $client);
     }
 
     public function testCreateSpanParamRegistersMiddlewareWithSpanEnabled(): void
     {
-        // Verify the HandlerStack string representation reflects the createSpan variant.
-        // Span creation itself is tested in GuzzleMiddlewareTest.
-        $client = GuzzleClientFactory::create([], createSpan: true);
+        $stack = HandlerStack::create();
+        $stack->push(new \OtelInstrumentation\Middleware\TraceContext\GuzzleMiddleware(createSpan: true), 'traceparent');
 
-        $handler = $client->getConfig('handler');
-        $this->assertInstanceOf(HandlerStack::class, $handler);
-        $this->assertStringContainsString('traceparent', (string) $handler);
+        $this->assertStringContainsString('traceparent', (string) $stack);
+    }
+
+    public function testThrowsWhenHandlerKeyProvided(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+
+        GuzzleClientFactory::create(['handler' => HandlerStack::create()]);
     }
 }

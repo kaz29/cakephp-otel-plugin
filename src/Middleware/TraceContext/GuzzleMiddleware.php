@@ -38,15 +38,15 @@ class GuzzleMiddleware
     public function __invoke(callable $handler): callable
     {
         return function (RequestInterface $request, array $options) use ($handler): PromiseInterface {
-            // PSR-7 RequestInterface is immutable; inject into a plain array first
-            // then copy onto the request via withHeader().
-            $headers = [];
-            TraceContextPropagator::getInstance()->inject($headers);
-            foreach ($headers as $name => $value) {
-                $request = $request->withHeader($name, $value);
-            }
-
             if (!$this->createSpan) {
+                // PSR-7 RequestInterface is immutable; inject into a plain array first
+                // then copy onto the request via withHeader().
+                $headers = [];
+                TraceContextPropagator::getInstance()->inject($headers);
+                foreach ($headers as $name => $value) {
+                    $request = $request->withHeader($name, $value);
+                }
+
                 return $handler($request, $options);
             }
 
@@ -70,10 +70,20 @@ class GuzzleMiddleware
 
         $scope = $span->storeInContext(Context::getCurrent())->activate();
 
+        // Inject headers after span activation so the CLIENT span's span_id propagates downstream.
+        $headers = [];
+        TraceContextPropagator::getInstance()->inject($headers);
+        foreach ($headers as $name => $value) {
+            $request = $request->withHeader($name, $value);
+        }
+
         return $handler($request, $options)->then(
             function (ResponseInterface $response) use ($span, $scope): ResponseInterface {
-                $span->setAttribute('http.response.status_code', $response->getStatusCode());
-                $span->setStatus(StatusCode::STATUS_OK);
+                $statusCode = $response->getStatusCode();
+                $span->setAttribute('http.response.status_code', $statusCode);
+                if ($statusCode >= 500) {
+                    $span->setStatus(StatusCode::STATUS_ERROR);
+                }
                 $span->end();
                 $scope->detach();
 
