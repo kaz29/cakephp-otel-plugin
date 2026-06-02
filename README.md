@@ -151,6 +151,52 @@ public function middleware(MiddlewareQueue $middlewareQueue): MiddlewareQueue
 }
 ```
 
+## GuzzleMiddleware
+
+A Guzzle middleware that injects W3C `traceparent` (and `tracestate`) headers into outbound HTTP requests, propagating the current trace context to downstream services.
+
+Requires `guzzlehttp/guzzle ^7.0` in your application's `composer.json`.
+
+### Setup via factory (recommended)
+
+```php
+use GuzzleHttp\Client;
+use OtelInstrumentation\Middleware\TraceContext\GuzzleClientFactory;
+
+// In Application::services()
+$container->add(Client::class, function () {
+    return GuzzleClientFactory::create([
+        'base_uri' => Configure::read('ExternalApi.baseUri'),
+    ]);
+});
+```
+
+### Setup via HandlerStack (manual)
+
+```php
+use GuzzleHttp\Client;
+use GuzzleHttp\HandlerStack;
+use OtelInstrumentation\Middleware\TraceContext\GuzzleMiddleware;
+
+$stack = HandlerStack::create();
+$stack->push(new GuzzleMiddleware(), 'traceparent');
+$client = new Client(['handler' => $stack]);
+```
+
+### CLIENT span creation
+
+Pass `createSpan: true` to also record a `KIND_CLIENT` span for each outbound request. The span carries `http.request.method`, `server.address`, `url.full`, and `http.response.status_code` attributes and follows the [OTel HTTP client semantic conventions](https://opentelemetry.io/docs/specs/semconv/http/http-spans/) (5xx → `STATUS_ERROR`, others → `STATUS_UNSET`).
+
+```php
+// Via factory
+GuzzleClientFactory::create(['base_uri' => '...'], createSpan: true);
+
+// Via HandlerStack
+$stack->push(new GuzzleMiddleware(createSpan: true), 'traceparent');
+```
+
+> **Note:** `GuzzleClientFactory::create()` throws `InvalidArgumentException` if you pass a `handler` key in `$clientConfig` — the handler is managed internally by the factory.
+
 ## TraceAwareLogger
 
 A PSR-3 LoggerInterface decorator that automatically injects `trace_id` / `span_id` into log `context`.
